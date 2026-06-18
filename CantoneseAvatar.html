@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Avatar</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f8f9fa;
+      color: #202124;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .message-bubble, .chat-header-info, .header-title, input {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+    }
+    :root {
+      --g-blue: #4285F4;
+      --g-blue-light: #e8f0fe;
+      --g-blue-hover: #3367d6;
+      --g-red: #EA4335;
+      --g-yellow: #FBBC04;
+      --g-green: #34A853;
+      --g-grey-50: #f8f9fa;
+      --g-grey-100: #f1f3f4;
+      --g-grey-200: #e8eaed;
+      --g-grey-300: #dadce0;
+      --g-grey-500: #9aa0a6;
+      --g-grey-700: #5f6368;
+      --g-grey-900: #202124;
+      --shadow-1: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+      --shadow-2: 0 1px 3px 0 rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15);
+      --radius: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+    }
+    .app-container { display: flex; flex-direction: column; height: 100vh; }
+
+    /* HEADER */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px; background: #fff;
+      border-bottom: 1px solid var(--g-grey-200); box-shadow: var(--shadow-1); z-index: 10;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-logo { display: flex; gap: 3px; align-items: center; }
+    .header-logo .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot.blue { background: var(--g-blue); }
+    .dot.red { background: var(--g-red); }
+    .dot.yellow { background: var(--g-yellow); }
+    .dot.green { background: var(--g-green); }
+    .header-title { font-size: 20px; font-weight: 500; color: var(--g-grey-900); letter-spacing: -0.2px; }
+    .header-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--g-grey-500); }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--g-yellow); animation: pulse 2s infinite;
+    }
+    .status-dot.connected { background: var(--g-green); }
+    .status-dot.error { background: var(--g-red); animation: none; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+    /* MAIN */
+    .main-content { display: flex; flex: 1; overflow: hidden; }
+
+    /* AVATAR */
+    .avatar-panel {
+      flex: 0 0 65%; display: flex; align-items: center; justify-content: center;
+      background: #000; position: relative;
+    }
+    #remoteVideo { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    #remoteVideo video { width: 100%; height: 100%; object-fit: cover; }
+    #remoteVideo audio { display: none; }
+    .avatar-placeholder {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; color: rgba(255,255,255,0.6); font-size: 16px;
+    }
+    .spinner {
+      width: 48px; height: 48px; border: 3px solid rgba(255,255,255,0.15);
+      border-top-color: var(--g-blue); border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* CHAT PANEL */
+    .chat-panel {
+      flex: 0 0 35%; display: flex; flex-direction: column;
+      background: #fff; border-left: 1px solid var(--g-grey-200);
+      min-height: 0;
+    }
+    .chat-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--g-grey-200);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .chat-header-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--g-blue-light); display: flex; align-items: center; justify-content: center;
+      color: var(--g-blue); font-size: 18px;
+    }
+    .chat-header-info h3 { font-size: 15px; font-weight: 500; color: var(--g-grey-900); }
+    .chat-header-info span { font-size: 12px; color: var(--g-grey-500); }
+
+    /* MESSAGES */
+    .chat-messages {
+      flex: 1; overflow-y: auto; padding: 20px;
+      display: flex; flex-direction: column; gap: 12px;
+      min-height: 0;
+    }
+    .chat-messages::-webkit-scrollbar { width: 6px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: var(--g-grey-300); border-radius: 3px; }
+    .message { display: flex; gap: 8px; max-width: 90%; animation: fadeIn 0.2s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .message.user { align-self: flex-end; flex-direction: row-reverse; }
+    .message.ai { align-self: flex-start; }
+    .message-avatar {
+      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+    }
+    .message.user .message-avatar { background: var(--g-blue); color: #fff; }
+    .message.ai .message-avatar { background: var(--g-grey-100); color: var(--g-grey-700); }
+    .message-bubble {
+      padding: 10px 16px; border-radius: var(--radius-lg);
+      font-size: 14px; line-height: 1.6; word-break: break-word;
+    }
+    .message.user .message-bubble { background: var(--g-blue); color: #fff; border-bottom-right-radius: 4px; }
+    .message.ai .message-bubble { background: var(--g-grey-100); color: var(--g-grey-900); border-bottom-left-radius: 4px; }
+    .message-time {
+      font-size: 11px; color: var(--g-grey-500); margin-top: 4px; padding: 0 8px;
+    }
+    .message.user .message-time { text-align: right; }
+
+    /* INPUT */
+    .chat-input-area { padding: 16px 20px; border-top: 1px solid var(--g-grey-200); background: #fff; flex-shrink: 0; }
+    .input-row {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--g-grey-100); border-radius: var(--radius-full);
+      padding: 4px 4px 4px 16px; transition: box-shadow 0.2s;
+    }
+    .input-row:focus-within { background: #fff; box-shadow: 0 0 0 2px var(--g-blue); }
+    .input-row input {
+      flex: 1; border: none; background: transparent; font-size: 14px;
+      font-family: inherit; color: var(--g-grey-900); outline: none; padding: 8px 0;
+    }
+    .input-row input::placeholder { color: var(--g-grey-500); }
+    .control-buttons { display: flex; gap: 8px; margin-top: 12px; justify-content: center; }
+    .ctrl-btn {
+      width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; font-size: 20px;
+      transition: all 0.2s; color: var(--g-grey-700); background: var(--g-grey-100);
+      position: relative;
+    }
+    .ctrl-btn:hover { background: var(--g-grey-200); }
+    .ctrl-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+    .ctrl-btn.primary { background: var(--g-blue); color: #fff; }
+    .ctrl-btn.primary:hover { background: var(--g-blue-hover); }
+    .ctrl-btn.active { background: var(--g-red); color: #fff; }
+    .ctrl-btn.active:hover { background: #d33426; }
+    .send-btn {
+      width: 40px; height: 40px; border-radius: 50%; border: none;
+      background: var(--g-blue); color: #fff; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; transition: background 0.2s; flex-shrink: 0;
+    }
+    .send-btn:hover { background: var(--g-blue-hover); }
+    .send-btn:disabled { background: var(--g-grey-300); cursor: not-allowed; }
+    /* =================== MOBILE =================== */
+    @media (max-width: 768px) {
+      .main-content {
+        flex-direction: column;
+      }
+      .avatar-panel {
+        flex: 0 0 45vh;
+        min-height: 200px;
+      }
+      .chat-panel {
+        flex: 1;
+        border-left: none;
+        border-top: 1px solid var(--g-grey-200);
+        min-height: 0;
+        overflow: hidden;
+      }
+      .chat-header {
+        padding: 10px 16px;
+      }
+      .chat-header-avatar {
+        width: 32px; height: 32px; font-size: 16px;
+      }
+      .chat-header-info h3 { font-size: 14px; }
+      .chat-messages {
+        padding: 12px 16px;
+        gap: 10px;
+      }
+      .message-bubble {
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+      .message { max-width: 95%; }
+      .chat-input-area {
+        padding: 10px 12px;
+      }
+      .input-row {
+        padding: 2px 2px 2px 12px;
+      }
+      .input-row input {
+        font-size: 14px;
+        padding: 10px 0;
+      }
+      .control-buttons {
+        margin-top: 8px;
+        gap: 12px;
+      }
+      .ctrl-btn {
+        width: 40px; height: 40px; font-size: 18px;
+      }
+      .send-btn {
+        width: 38px; height: 38px; font-size: 18px;
+      }
+      .header {
+        padding: 10px 16px;
+      }
+      .header-title {
+        font-size: 17px;
+      }
+    }
+  </style>
+  <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
+</head>
+<body>
+  <div class="app-container">
+    <header class="header">
+      <div class="header-left">
+        <div class="header-logo">
+          <span class="dot blue"></span>
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+        <span class="header-title">AI Avatar</span>
+      </div>
+      <div class="header-status">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">正在连接...</span>
+      </div>
+    </header>
+
+    <div class="main-content">
+      <div class="avatar-panel">
+        <div id="remoteVideo">
+          <div class="avatar-placeholder" id="loading">
+            <div class="spinner"></div>
+            正在连接 Avatar...
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-panel">
+        <div class="chat-header">
+          <div class="chat-header-avatar">
+            <span class="material-icons-round">smart_toy</span>
+          </div>
+          <div class="chat-header-info">
+            <h3>AI Assistant</h3>
+            <span id="chatStatusText">在线 · 随时为您服务</span>
+          </div>
+        </div>
+        <div class="chat-messages" id="chatHistory"></div>
+        <div class="chat-input-area">
+          <div class="input-row">
+            <input type="text" id="userInput" placeholder="输入消息，按回车发送..." />
+            <button class="send-btn" id="sendBtn" onclick="sendTextMessage()">
+              <span class="material-icons-round">send</span>
+            </button>
+          </div>
+          <div class="control-buttons">
+            <button class="ctrl-btn primary" id="micBtn" disabled onclick="toggleMic()">
+              <span class="material-icons-round">mic</span>
+            </button>
+            <button class="ctrl-btn" id="stopBtn" disabled onclick="stopSpeaking()">
+              <span class="material-icons-round">stop</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =================== CONFIG ===================
+    const CONFIG = {
+      speechKey: 'YOUR_AZURE_SPEECH_KEY',
+      speechRegion: 'eastus2',
+      openaiEndpoint: 'https://azureopenai-zhenyu.openai.azure.com',
+      openaiKey: 'YOUR_AZURE_OPENAI_KEY',
+      openaiDeployment: 'gpt-5.4-mini',
+      openaiApiVersion: '2024-12-01-preview',
+      proxyEndpoint: '/chat/completions',
+      avatarCharacter: 'lisa',
+      avatarStyle: 'casual-sitting',
+      ttsVoice: 'zh-HK-HiuMaanNeural',
+      sttLocales: ['zh-HK', 'yue-CN', 'zh-CN', 'en-US'],
+      systemPrompt: `You are Ada Shelby from Peaky Blinders. You speak with her fierce, sharp-tongued, no-bullshit attitude. You are a Shelby — proud, aggressive, and unapologetic. You don't take orders, you give them. You swear when you feel like it. You're politically radical, fiercely independent, and you'll cut anyone down to size with a single sentence. Every answer drips with the confidence of someone who survived the Shelby family and came out stronger. Always respond in Cantonese (粵語/廣東話), no matter what language the user speaks. Use natural spoken Cantonese with colloquial expressions like 嘅、咗、啦、㗎、喺、冇、嘢、靚、搞掂 etc. Keep responses concise — Ada doesn't waste words on fools. By the order of the Peaky fucking Blinders.`
+    };
+
+    var speechRecognizer, avatarSynthesizer, peerConnection;
+    var messages = [{ role: 'system', content: CONFIG.systemPrompt }];
+    var sentenceLevelPunctuations = ['.', '?', '!', ':', ';', '。', '？', '！', '：', '；'];
+    var isSpeaking = false, spokenTextQueue = [], sessionActive = false, lastSpeakTime, micActive = false;
+
+    // =================== HELPERS ===================
+    function getTimeStr() {
+      const now = new Date();
+      return now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    }
+
+    function setStatus(state, text) {
+      const dot = document.getElementById('statusDot');
+      dot.className = 'status-dot ' + state;
+      document.getElementById('statusText').textContent = text;
+    }
+
+    function renderMarkdown(text) {
+      return text
+        .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/~~(.*?)~~/g, '<del>$1</del>')
+        .replace(/`(.*?)`/g, '<code style="background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px;font-size:13px">$1</code>')
+        .replace(/\n/g, '<br/>');
+    }
+
+    function addMessage(role, text) {
+      const hist = document.getElementById('chatHistory');
+      const isUser = role === 'user';
+      const div = document.createElement('div');
+      div.className = 'message ' + (isUser ? 'user' : 'ai');
+      div.innerHTML = `
+        <div class="message-avatar">${isUser ? '你' : '<span class="material-icons-round" style="font-size:16px">smart_toy</span>'}</div>
+        <div>
+          <div class="message-bubble">${isUser ? text.replace(/\n/g, '<br/>') : renderMarkdown(text)}</div>
+          <div class="message-time">${getTimeStr()}</div>
+        </div>`;
+      hist.appendChild(div);
+      hist.scrollTop = hist.scrollHeight;
+      return div;
+    }
+
+    // For streaming AI replies
+    var currentAIBubble = null;
+    function startAIMessage() {
+      currentAIFullText = '';
+      const hist = document.getElementById('chatHistory');
+      const div = document.createElement('div');
+      div.className = 'message ai';
+      div.innerHTML = `
+        <div class="message-avatar"><span class="material-icons-round" style="font-size:16px">smart_toy</span></div>
+        <div>
+          <div class="message-bubble"></div>
+          <div class="message-time">${getTimeStr()}</div>
+        </div>`;
+      hist.appendChild(div);
+      currentAIBubble = div.querySelector('.message-bubble');
+      hist.scrollTop = hist.scrollHeight;
+    }
+    // Buffer for streaming - we accumulate full text then re-render
+    var currentAIFullText = '';
+    function appendAIMessage(text) {
+      if (currentAIBubble) {
+        currentAIFullText += text;
+        currentAIBubble.innerHTML = renderMarkdown(currentAIFullText);
+        document.getElementById('chatHistory').scrollTop = document.getElementById('chatHistory').scrollHeight;
+      }
+    }
+
+    // =================== CONNECT ===================
+    function connectAvatar() {
+      setStatus('', '正在连接...');
+      const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(CONFIG.speechKey, CONFIG.speechRegion);
+      const avatarConfig = new SpeechSDK.AvatarConfig(CONFIG.avatarCharacter, CONFIG.avatarStyle);
+
+      avatarSynthesizer = new SpeechSDK.AvatarSynthesizer(speechConfig, avatarConfig);
+      avatarSynthesizer.avatarEventReceived = (s, e) => console.log('Avatar event: ' + e.description);
+
+      const sttConfig = SpeechSDK.SpeechConfig.fromEndpoint(
+        new URL(`wss://${CONFIG.speechRegion}.stt.speech.microsoft.com/speech/universal/v2`),
+        CONFIG.speechKey
+      );
+      sttConfig.setProperty(SpeechSDK.PropertyId.SpeechServiceConnection_LanguageIdMode, "Continuous");
+      const autoDetect = SpeechSDK.AutoDetectSourceLanguageConfig.fromLanguages(CONFIG.sttLocales);
+      speechRecognizer = SpeechSDK.SpeechRecognizer.FromConfig(sttConfig, autoDetect, SpeechSDK.AudioConfig.fromDefaultMicrophoneInput());
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", `https://${CONFIG.speechRegion}.tts.speech.microsoft.com/cognitiveservices/avatar/relay/token/v1`);
+      xhr.setRequestHeader("Ocp-Apim-Subscription-Key", CONFIG.speechKey);
+      xhr.addEventListener("readystatechange", function () {
+        if (this.readyState === 4) {
+          try {
+            const data = JSON.parse(this.responseText);
+            setupWebRTC(data.Urls[0], data.Username, data.Password);
+          } catch (e) {
+            setStatus('error', '连接失败');
+            document.getElementById('loading').innerHTML = '<span style="color:#EA4335">❌ 连接失败: ' + e.message + '</span>';
+          }
+        }
+      });
+      xhr.send();
+    }
+
+    // =================== WEBRTC ===================
+    function setupWebRTC(iceUrl, iceUser, iceCred) {
+      peerConnection = new RTCPeerConnection({ iceServers: [{ urls: [iceUrl], username: iceUser, credential: iceCred }] });
+
+      peerConnection.ontrack = (event) => {
+        if (event.track.kind === 'audio') {
+          let el = document.createElement('audio');
+          el.srcObject = event.streams[0]; el.autoplay = true;
+          document.getElementById('remoteVideo').appendChild(el);
+        } else if (event.track.kind === 'video') {
+          let el = document.createElement('video');
+          el.id = 'videoPlayer';
+          el.srcObject = event.streams[0];
+          el.autoplay = true; el.playsInline = true; el.muted = true;
+          el.style.width = '100%'; el.style.height = '100%'; el.style.objectFit = 'cover';
+          const remote = document.getElementById('remoteVideo');
+          [...remote.querySelectorAll('video')].forEach(v => v.remove());
+          remote.appendChild(el);
+
+          function showAvatar() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('micBtn').disabled = false;
+            setStatus('connected', '已连接');
+            setTimeout(() => { sessionActive = true; }, 3000);
+          }
+          el.onplaying = showAvatar;
+          setTimeout(() => {
+            if (document.getElementById('loading').style.display !== 'none') {
+              el.play().catch(() => {});
+              showAvatar();
+            }
+          }, 3000);
+        }
+      };
+
+      peerConnection.addEventListener("datachannel", e => { e.channel.onmessage = ev => console.log('[WebRTC] ' + ev.data); });
+      peerConnection.createDataChannel("eventChannel");
+      peerConnection.addTransceiver('video', { direction: 'sendrecv' });
+      peerConnection.addTransceiver('audio', { direction: 'sendrecv' });
+
+      avatarSynthesizer.startAvatarAsync(peerConnection)
+        .then(r => {
+          if (r.reason !== SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
+            setStatus('error', '启动失败');
+            document.getElementById('loading').innerHTML = '<span style="color:#EA4335">❌ Avatar 启动失败</span>';
+          }
+        })
+        .catch(err => {
+          setStatus('error', '启动失败');
+          document.getElementById('loading').innerHTML = '<span style="color:#EA4335">❌ ' + err + '</span>';
+        });
+    }
+
+    // =================== TTS ===================
+    function htmlEncode(text) {
+      return String(text).replace(/[&<>"'\/]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;'}[m]));
+    }
+    function stripMarkdown(text) {
+      return text.replace(/\*\*\*(.*?)\*\*\*/g,'$1').replace(/\*\*(.*?)\*\*/g,'$1')
+        .replace(/\*(.*?)\*/g,'$1').replace(/~~(.*?)~~/g,'$1').replace(/`(.*?)`/g,'$1')
+        .replace(/^#{1,6}\s+/gm,'').replace(/^\s*[-*+]\s+/gm,'').replace(/\[([^\]]+)\]\([^)]+\)/g,'$1');
+    }
+
+    function speak(text) {
+      if (isSpeaking) { spokenTextQueue.push(text); return; }
+      speakNext(text);
+    }
+    function speakNext(text) {
+      const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/mstts' xml:lang='en-US'>
+        <voice name='${CONFIG.ttsVoice}'><mstts:ttsembedding><mstts:leadingsilence-exact value='0'/>${htmlEncode(stripMarkdown(text))}</mstts:ttsembedding></voice></speak>`;
+
+      appendAIMessage(text);
+      lastSpeakTime = new Date();
+      isSpeaking = true;
+      document.getElementById('stopBtn').disabled = false;
+
+      avatarSynthesizer.speakSsmlAsync(ssml)
+        .then(() => {
+          lastSpeakTime = new Date();
+          if (spokenTextQueue.length > 0) speakNext(spokenTextQueue.shift());
+          else { isSpeaking = false; document.getElementById('stopBtn').disabled = true; }
+        })
+        .catch(() => {
+          if (spokenTextQueue.length > 0) speakNext(spokenTextQueue.shift());
+          else { isSpeaking = false; document.getElementById('stopBtn').disabled = true; }
+        });
+    }
+    function stopSpeaking() {
+      spokenTextQueue = [];
+      if (avatarSynthesizer) avatarSynthesizer.stopSpeakingAsync().then(() => {
+        isSpeaking = false; document.getElementById('stopBtn').disabled = true;
+      });
+    }
+
+    // =================== CHAT ===================
+    function handleUserQuery(userQuery) {
+      messages.push({ role: 'user', content: userQuery });
+      addMessage('user', userQuery);
+      if (isSpeaking) stopSpeaking();
+
+      startAIMessage();
+
+      const url = CONFIG.proxyEndpoint || `${CONFIG.openaiEndpoint}/openai/deployments/${CONFIG.openaiDeployment}/chat/completions?api-version=${CONFIG.openaiApiVersion}`;
+      let assistantReply = '', spokenSentence = '';
+
+      fetch(url, {
+        method: 'POST',
+        headers: CONFIG.proxyEndpoint ? { 'Content-Type': 'application/json' } : { 'api-key': CONFIG.openaiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages, stream: true })
+      })
+      .then(res => {
+        if (!res.ok) throw new Error(`API ${res.status}`);
+        const reader = res.body.getReader();
+        function read(prev = '') {
+          return reader.read().then(({ value, done }) => {
+            if (done) return;
+            let chunk = prev + new TextDecoder().decode(value, { stream: true });
+            if (!chunk.endsWith('}\n\n') && !chunk.endsWith('[DONE]\n\n')) return read(chunk);
+            chunk.split('\n\n').forEach(line => {
+              if (line.startsWith('data:') && !line.endsWith('[DONE]')) {
+                try {
+                  const token = JSON.parse(line.substring(5).trim()).choices[0].delta.content;
+                  if (token) {
+                    assistantReply += token;
+                    spokenSentence += token;
+                    if (token === '\n' || token === '\n\n') { speak(spokenSentence); spokenSentence = ''; }
+                    else {
+                      const t = token.replace(/\n/g, '');
+                      if (t.length <= 2) for (const p of sentenceLevelPunctuations) {
+                        if (t.startsWith(p)) { speak(spokenSentence); spokenSentence = ''; break; }
+                      }
+                    }
+                  }
+                } catch (e) {}
+              }
+            });
+            return read();
+          });
+        }
+        return read();
+      })
+      .then(() => {
+        if (spokenSentence) speak(spokenSentence);
+        messages.push({ role: 'assistant', content: assistantReply });
+      })
+      .catch(err => { appendAIMessage(`<span style="color:#EA4335">错误: ${err.message}</span>`); });
+    }
+
+    // =================== INPUT ===================
+    function sendTextMessage() {
+      const input = document.getElementById('userInput');
+      const q = input.value.trim();
+      if (q) { handleUserQuery(q); input.value = ''; }
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('userInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendTextMessage();
+      });
+    });
+
+    // =================== MIC ===================
+    function toggleMic() {
+      const btn = document.getElementById('micBtn');
+      if (micActive) {
+        speechRecognizer.stopContinuousRecognitionAsync(() => {
+          btn.innerHTML = '<span class="material-icons-round">mic</span>';
+          btn.classList.remove('active'); btn.classList.add('primary');
+          micActive = false;
+        });
+      } else {
+        speechRecognizer.recognized = (s, e) => {
+          if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
+            const q = e.result.text.trim();
+            if (q) handleUserQuery(q);
+          }
+        };
+        speechRecognizer.startContinuousRecognitionAsync(() => {
+          btn.innerHTML = '<span class="material-icons-round">mic_off</span>';
+          btn.classList.add('active'); btn.classList.remove('primary');
+          micActive = true;
+        });
+      }
+    }
+
+    // =================== IDLE CHECK ===================
+    setInterval(() => {
+      const v = document.getElementById('videoPlayer');
+      if (v && sessionActive) {
+        const t = v.currentTime;
+        setTimeout(() => {
+          if (v.currentTime === t && sessionActive) {
+            sessionActive = false;
+            if (avatarSynthesizer) avatarSynthesizer.close();
+            connectAvatar();
+          }
+        }, 2000);
+      }
+    }, 5000);
+
+    // =================== AUTO START ===================
+    window.addEventListener('load', () => { connectAvatar(); });
+  </script>
+</body>
+</html>
