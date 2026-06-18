@@ -1,15 +1,17 @@
-# 🤖 Avatar 纪元 - AI 数字人对话平台
+#  Avatar 纪元 - AI 数字人对话平台
+
+<img width="1911" height="1034" alt="f7b37535d6588df6e57a28a319ded249" src="https://github.com/user-attachments/assets/c985e380-5807-4b95-b25d-82fbc8109eb8" />
 
 基于 Azure AI Speech + Azure OpenAI 构建的实时 AI 数字人交互平台，支持语音对话、实时表情、多语言切换。
 
 ## ✨ 功能特性
 
-- 🎭 **实时数字人** - Azure Speech Avatar WebRTC 实时渲染
-- 🗣️ **语音对话** - 支持语音输入 + TTS 语音输出
-- 💬 **智能对话** - GPT-4o 驱动的自然语言交互
-- 🌐 **多语言** - 支持普通话 & 粤语版本
-- 🎨 **现代 UI** - Material Design 风格，响应式布局
-- 📡 **流式响应** - SSE 实时流式输出，体验流畅
+-  **实时数字人** - Azure Speech Avatar WebRTC 实时渲染
+-  **语音对话** - 支持语音输入 + TTS 语音输出
+-  **智能对话** - GPT-4o 驱动的自然语言交互
+-  **多语言** - 支持普通话 & 粤语版本
+-  **现代 UI** - Material Design 风格，响应式布局
+-  **流式响应** - SSE 实时流式输出，体验流畅
 
 ## 🛠️ 技术栈
 
@@ -88,15 +90,15 @@ pm2 save
 
 生产环境建议通过环境变量或后端代理注入密钥，避免前端暴露。
 
-## 🎯 演示
+##  演示
 
 - 普通话版: `/chat.html`
 - 粤语版: `/CantoneseAvatar.html`
 
-## 📄 许可证
+##  许可证
 
 MIT License
 
-## 👤 作者
+##  作者
 
 [@zhenyuduan98](https://github.com/zhenyuduan98)
