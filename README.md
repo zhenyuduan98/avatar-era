@@ -82,13 +82,6 @@ pm2 start proxy.js --name avatar-proxy
 pm2 save
 ```
 
-## 🔐 安全说明
-
-⚠️ **不要将 API 密钥提交到 Git！**
-
-本项目使用占位符 (`YOUR_AZURE_SPEECH_KEY` / `YOUR_AZURE_OPENAI_KEY`)，部署时请替换为真实密钥。
-
-生产环境建议通过环境变量或后端代理注入密钥，避免前端暴露。
 
 ##  演示
 
