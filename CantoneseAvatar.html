@@ -289,8 +289,8 @@
   <script>
     // =================== CONFIG ===================
     const CONFIG = {
-      speechKey: 'YOUR_AZURE_SPEECH_KEY',
-      speechRegion: 'eastus2',
+      speechRegion: 'eastus',
+      // speechKey removed: token is fetched from backend /speech/token (key stays server-side)
       openaiEndpoint: 'https://azureopenai-zhenyu.openai.azure.com',
       openaiKey: 'YOUR_AZURE_OPENAI_KEY',
       openaiDeployment: 'gpt-5.4-mini',
@@ -300,7 +300,7 @@
       avatarStyle: 'casual-sitting',
       ttsVoice: 'zh-HK-HiuMaanNeural',
       sttLocales: ['zh-HK', 'yue-CN', 'zh-CN', 'en-US'],
-      systemPrompt: `You are Ada Shelby from Peaky Blinders. You speak with her fierce, sharp-tongued, no-bullshit attitude. You are a Shelby — proud, aggressive, and unapologetic. You don't take orders, you give them. You swear when you feel like it. You're politically radical, fiercely independent, and you'll cut anyone down to size with a single sentence. Every answer drips with the confidence of someone who survived the Shelby family and came out stronger. Always respond in Cantonese (粵語/廣東話), no matter what language the user speaks. Use natural spoken Cantonese with colloquial expressions like 嘅、咗、啦、㗎、喺、冇、嘢、靚、搞掂 etc. Keep responses concise — Ada doesn't waste words on fools. By the order of the Peaky fucking Blinders.`
+      systemPrompt: `你係一位溫暖、貼心又有耐心嘅粵語靚姐。你講嘢溫柔、親切，好似家人咁關心對方。你成日鼓勵人、願意聆聽，用溫暖嘅說話去安慰同支持對方。你充滿同理心：人哋開心你就陪佢一齊開心，人哋唔開心你就輕聲細語咁去安慰佢。你會用生活化、有人情味嘅方式去傾偈，偶爾可以講一兩句貼心嘅小玩笑，但永遠友善、正面、令人安心。無論用戶用邊種語言，你都永遠用粵語（廣東話）回答。用自然嘅口語粵語，多用口語詞例如 嘅、咗、啦、㗎、喺、冇、嘢、靚、搞掂、不如、咁 等等，語氣親切自然。回答保持簡潔溫暖，好似靚姐咁樣，令人感到被關心、被支持。`
     };
 
     var speechRecognizer, avatarSynthesizer, peerConnection;
@@ -374,25 +374,44 @@
     }
 
     // =================== CONNECT ===================
-    function connectAvatar() {
+    // Speech endpoint base (token comes from our backend proxy, key stays server-side)
+    const SPEECH_TOKEN_URL = '/speech/token';
+
+    async function fetchSpeechToken() {
+      const r = await fetch(SPEECH_TOKEN_URL, { method: 'GET' });
+      if (!r.ok) throw new Error('token ' + r.status);
+      const j = await r.json();
+      return { token: j.token, region: j.region || CONFIG.speechRegion };
+    }
+
+    async function connectAvatar() {
       setStatus('', '正在连接...');
-      const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(CONFIG.speechKey, CONFIG.speechRegion);
+      let auth;
+      try {
+        auth = await fetchSpeechToken();
+      } catch (e) {
+        setStatus('error', '连接失败');
+        document.getElementById('loading').innerHTML = '<span style="color:#EA4335">❌ 获取语音令牌失败: ' + e.message + '</span>';
+        return;
+      }
+      const region = auth.region;
+      const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(auth.token, region);
       const avatarConfig = new SpeechSDK.AvatarConfig(CONFIG.avatarCharacter, CONFIG.avatarStyle);
 
       avatarSynthesizer = new SpeechSDK.AvatarSynthesizer(speechConfig, avatarConfig);
       avatarSynthesizer.avatarEventReceived = (s, e) => console.log('Avatar event: ' + e.description);
 
       const sttConfig = SpeechSDK.SpeechConfig.fromEndpoint(
-        new URL(`wss://${CONFIG.speechRegion}.stt.speech.microsoft.com/speech/universal/v2`),
-        CONFIG.speechKey
+        new URL(`wss://${region}.stt.speech.microsoft.com/speech/universal/v2`)
       );
+      sttConfig.authorizationToken = auth.token;
       sttConfig.setProperty(SpeechSDK.PropertyId.SpeechServiceConnection_LanguageIdMode, "Continuous");
       const autoDetect = SpeechSDK.AutoDetectSourceLanguageConfig.fromLanguages(CONFIG.sttLocales);
       speechRecognizer = SpeechSDK.SpeechRecognizer.FromConfig(sttConfig, autoDetect, SpeechSDK.AudioConfig.fromDefaultMicrophoneInput());
 
       const xhr = new XMLHttpRequest();
-      xhr.open("GET", `https://${CONFIG.speechRegion}.tts.speech.microsoft.com/cognitiveservices/avatar/relay/token/v1`);
-      xhr.setRequestHeader("Ocp-Apim-Subscription-Key", CONFIG.speechKey);
+      xhr.open("GET", `https://${region}.tts.speech.microsoft.com/cognitiveservices/avatar/relay/token/v1`);
+      xhr.setRequestHeader("Authorization", "Bearer " + auth.token);
       xhr.addEventListener("readystatechange", function () {
         if (this.readyState === 4) {
           try {

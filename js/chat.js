@@ -1,7 +1,7 @@
 // =================== CONFIG ===================
 const CONFIG = {
-    speechKey: 'YOUR_AZURE_SPEECH_KEY',
-    speechRegion: 'eastus2',
+    speechRegion: 'eastus',
+    // speechKey removed: token is fetched from backend /speech/token (key stays server-side)
     openaiEndpoint: 'https://azureopenai-zhenyu.openai.azure.com',
     openaiKey: 'YOUR_AZURE_OPENAI_KEY',
     openaiDeployment: 'gpt-5.4-mini',
@@ -19,8 +19,25 @@ var sentenceLevelPunctuations = ['.', '?', '!', ':', ';', '。', '？', '！', '
 var isSpeaking = false, spokenTextQueue = [], sessionActive = false, lastSpeakTime, micActive = false;
 
 // =================== CONNECT ===================
-function connectAvatar() {
-    const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(CONFIG.speechKey, CONFIG.speechRegion);
+const SPEECH_TOKEN_URL = '/speech/token';
+
+async function fetchSpeechToken() {
+    const r = await fetch(SPEECH_TOKEN_URL, { method: 'GET' });
+    if (!r.ok) throw new Error('token ' + r.status);
+    const j = await r.json();
+    return { token: j.token, region: j.region || CONFIG.speechRegion };
+}
+
+async function connectAvatar() {
+    let auth;
+    try {
+        auth = await fetchSpeechToken();
+    } catch (e) {
+        document.getElementById('loading').innerHTML = '❌ 获取语音令牌失败: ' + e.message;
+        return;
+    }
+    const region = auth.region;
+    const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(auth.token, region);
     const avatarConfig = new SpeechSDK.AvatarConfig(CONFIG.avatarCharacter, CONFIG.avatarStyle);
 
     avatarSynthesizer = new SpeechSDK.AvatarSynthesizer(speechConfig, avatarConfig);
@@ -28,17 +45,17 @@ function connectAvatar() {
 
     // STT
     const sttConfig = SpeechSDK.SpeechConfig.fromEndpoint(
-        new URL(`wss://${CONFIG.speechRegion}.stt.speech.microsoft.com/speech/universal/v2`),
-        CONFIG.speechKey
+        new URL(`wss://${region}.stt.speech.microsoft.com/speech/universal/v2`)
     );
+    sttConfig.authorizationToken = auth.token;
     sttConfig.setProperty(SpeechSDK.PropertyId.SpeechServiceConnection_LanguageIdMode, "Continuous");
     const autoDetect = SpeechSDK.AutoDetectSourceLanguageConfig.fromLanguages(CONFIG.sttLocales);
     speechRecognizer = SpeechSDK.SpeechRecognizer.FromConfig(sttConfig, autoDetect, SpeechSDK.AudioConfig.fromDefaultMicrophoneInput());
 
     // Get relay token
     const xhr = new XMLHttpRequest();
-    xhr.open("GET", `https://${CONFIG.speechRegion}.tts.speech.microsoft.com/cognitiveservices/avatar/relay/token/v1`);
-    xhr.setRequestHeader("Ocp-Apim-Subscription-Key", CONFIG.speechKey);
+    xhr.open("GET", `https://${region}.tts.speech.microsoft.com/cognitiveservices/avatar/relay/token/v1`);
+    xhr.setRequestHeader("Authorization", "Bearer " + auth.token);
     xhr.addEventListener("readystatechange", function () {
         if (this.readyState === 4) {
             try {
